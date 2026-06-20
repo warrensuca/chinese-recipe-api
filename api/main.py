@@ -2,17 +2,27 @@ from fastapi import FastAPI, HTTPException
 import pandas as pd
 import numpy as np
 import ast
-import joblib # NEW: Imported joblib to load your pre-trained models
+import joblib 
 from typing import Optional
+import os
 
 app = FastAPI(title="Recipe Recommendation API")
 
 #load data and models
-df = pd.read_csv("../clustering/clustered_recipes.csv")
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-scaler = joblib.load("../clustering/scaler.joblib") 
-kmeans = joblib.load("../clustering/kmeans.joblib")
+csv_path = os.path.join(BASE_DIR, "../clustering/clustered_recipes.csv")
+
+scaler_path = os.path.join(BASE_DIR, "../clustering/scaler.joblib")
+kmeans_path = os.path.join(BASE_DIR, "../clustering/kmeans.joblib")
+
+
+df = pd.read_csv(csv_path)
+
+scaler = joblib.load(scaler_path) 
+kmeans = joblib.load(kmeans_path)
 
 nutrition_features = [
     "Calories", "Carbohydrates", "Protein", "Fat", 
@@ -32,7 +42,7 @@ dataset_medians = df[nutrition_features].median().to_numpy()
 
 #helper functions
 
-def parse_ingredients(value):
+async def parse_ingredients(value):
     try:
         ingredients = ast.literal_eval(value)
         if isinstance(ingredients, list):
@@ -41,17 +51,17 @@ def parse_ingredients(value):
     except:
         return set()
 
-def jaccard_similarity(set_a, set_b):
+async def jaccard_similarity(set_a, set_b):
     union = set_a | set_b
     if len(union) == 0:
         return 0
     return len(set_a & set_b) / len(union)
 
-def nutrition_similarity(index_a, index_b):
+async def nutrition_similarity(index_a, index_b):
     distance = np.linalg.norm(scaled_nutrition[index_a] - scaled_nutrition[index_b])
     return 1 / (1 + distance)
 
-def recipe_similarity(index_a, index_b):
+async def recipe_similarity(index_a, index_b):
     nutrition_score = nutrition_similarity(index_a, index_b)
     ingredients_a = parse_ingredients(df.iloc[index_a]["Ingredients_Names"])
     ingredients_b = parse_ingredients(df.iloc[index_b]["Ingredients_Names"])
@@ -64,12 +74,12 @@ def recipe_similarity(index_a, index_b):
 
 
 @app.get("/")
-def root():
+async def root():
     return {"message": "Recipe Recommendation API"}
 
 
 @app.get("/clusters")
-def get_clusters():
+async def get_clusters():
     clusters = (
         df.groupby(["Cluster", "Cluster_Name"])
         .size()
@@ -79,7 +89,7 @@ def get_clusters():
 
 
 @app.get("/clusters/{cluster_id}")
-def get_cluster_recipes(cluster_id: int):
+async def get_cluster_recipes(cluster_id: int):
     recipes = df[df["Cluster"] == cluster_id]
     if len(recipes) == 0:
         raise HTTPException(status_code=404, detail="Cluster not found")
@@ -89,7 +99,7 @@ def get_cluster_recipes(cluster_id: int):
 
 
 @app.get("/recipe/{recipe_name}")
-def get_recipe(recipe_name: str):
+async def get_recipe(recipe_name: str):
     recipe = df[df["Name"] == recipe_name]
     if len(recipe) == 0:
         raise HTTPException(status_code=404, detail="Recipe not found")
@@ -97,7 +107,7 @@ def get_recipe(recipe_name: str):
 
 
 @app.get("/recommend/{recipe_name}")
-def recommend(recipe_name: str):
+async def recommend(recipe_name: str):
     matches = df[df["Name"] == recipe_name]
     if len(matches) == 0:
         raise HTTPException(status_code=404, detail="Recipe not found")
@@ -122,7 +132,7 @@ def recommend(recipe_name: str):
 
 
 @app.get("/nearest-cluster/{recipe_name}")
-def nearest_cluster(recipe_name: str):
+async def nearest_cluster(recipe_name: str):
     recipe = df[df["Name"] == recipe_name]
 
     if len(recipe) == 0:
@@ -147,7 +157,7 @@ def nearest_cluster(recipe_name: str):
 
 
 @app.get("/recommend-by-nutrition")
-def recommend_by_nutrition(
+async def recommend_by_nutrition(
     calories: Optional[float] = None,
     carbohydrates: Optional[float] = None,
     protein: Optional[float] = None,
