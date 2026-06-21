@@ -1,11 +1,10 @@
 # Chinese Recipe Recommendation API
 
-A machine learning-powered REST API that clusters and recommends Chinese recipes based on their nutritional profiles and ingredient similarities.
+A machine learning-centred REST API that clusters and recommends Chinese recipes scraped from [Omnivore's Kitchen](https://omnivorescookbook.com/category/recipe/) and [The Woks of Life](https://thewoksoflife.com/category/recipes/) based on their nutritional profiles and ingredient similarities.
 
 **Live URL:** [https://chinese-recipe-api.vercel.app/](https://chinese-recipe-api.vercel.app/)
 
 ## Features
-
 * **Nutritional Clustering:** Recipes are categorized into distinct clusters based on 7 nutritional features.
 * **Hybrid Recommendation Engine:** Recommends similar recipes by blending nutritional distance (Euclidean) and ingredient overlap (Jaccard similarity).
 * **Targeted Search:** Input custom macro/micro nutritional values (Calories, Protein, Fat, etc.) to get nearest-neighbor recipe recommendations.
@@ -14,7 +13,9 @@ A machine learning-powered REST API that clusters and recommends Chinese recipes
 ## Tech Stack
 
 * **Framework:** FastAPI
+* **Data Acquisition:** Beautiful Soup
 * **Data Processing:** Pandas, NumPy
+* **Data Visualization:** Matplotlib
 * **Machine Learning:** Scikit-Learn, Joblib
 * **Deployment:** Vercel
 
