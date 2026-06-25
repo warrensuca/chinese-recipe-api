@@ -16,6 +16,8 @@ class CustomMiddleWare(BaseHTTPMiddleware):
     def __init__(self, app):
         super().__init__(app)
         self.rate_limit_records: Dict[str, float] = defaultdict(float)
+        # Define paths to exempt from rate limiting
+        self.exempt_paths = {"/docs", "/redoc", "/openapi.json", "/favicon.png"}
     
     async def log_message(self, message: str):
         print(message)
@@ -24,7 +26,7 @@ class CustomMiddleWare(BaseHTTPMiddleware):
         client_ip = request.client.host
         current_time = time.time()
 
-        if current_time - self.rate_limit_records[client_ip] < 1: 
+        if current_time - self.rate_limit_records[client_ip] < 0.5: 
             return Response(content = "Rate limit exceeded", status_code = 429)
 
         self.rate_limit_records[client_ip] = current_time
