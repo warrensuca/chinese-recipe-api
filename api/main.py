@@ -13,13 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(title="Recipe Recommendation API")
 
 #middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # allows all origins 
-    allow_credentials=True,
-    allow_methods=["*"],  # allows all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],  # allows all headers
-)
+
 class CustomMiddleWare(BaseHTTPMiddleware):
     def __init__(self, app):
         super().__init__(app)
@@ -54,6 +48,13 @@ class CustomMiddleWare(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(CustomMiddleWare)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # allows all origins 
+    allow_credentials=True,
+    allow_methods=["*"],  # allows all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # allows all headers
+)
 #load data and models
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
