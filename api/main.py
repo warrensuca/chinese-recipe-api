@@ -260,3 +260,76 @@ async def recommend_by_nutrition(
         })
 
     return recommendations
+@app.get("/recommend-by-weighted_nutrition")
+async def recommend_by_weighted_nutrition(
+    calories: Optional[float] = None,
+    carbohydrates: Optional[float] = None,
+    protein: Optional[float] = None,
+    fat: Optional[float] = None,
+    saturated_fat: Optional[float] = None,
+    sodium: Optional[float] = None,
+    sugar: Optional[float] = None,
+):
+    user_values = {
+        "Calories": calories, "Carbohydrates": carbohydrates,
+        "Protein": protein, "Fat": fat,
+        "Saturated Fat": saturated_fat, "Sodium": sodium, "Sugar": sugar,
+    }
+
+    #track which features the user actually provided
+    provided_mask = []
+    user_array = dataset_medians.copy() # start with median placeholders
+
+    for i, feature in enumerate(nutrition_features):
+        if user_values[feature] is not None:
+            user_array[i] = user_values[feature]
+            provided_mask.append(True)
+        else:
+            provided_mask.append(False)
+
+    if not any(provided_mask):
+        raise HTTPException(status_code=400, detail="Provide at least one nutrition value.")
+
+    
+    scaled_user_input = scaler.transform(user_array.reshape(1, -1))[0]
+
+    # vectorized distacne calculation
+    
+    #dataset_relevant_features = scaled_nutrition[:, provided_mask]
+    #user_relevant_features = scaled_user_input[provided_mask]
+
+    weights = np.array([
+        2.5,  # Calories
+        2,   # Carbs
+        2,   # Protein
+        1.5,   # Fat
+        0.8,   # Saturated Fat
+        1.0,   # Sodium
+        1.0    # Sugar
+    ])
+    selected_weights = weights[provided_mask]
+    
+    diff = scaled_nutrition[:, provided_mask] - scaled_user_input[provided_mask]
+
+    distances = np.sqrt(
+        np.sum(
+            selected_weights * diff**2,
+            axis=1
+        )
+    )
+
+    
+    # np.argsort returns the row indices sorted by closest distance
+    top_indices = np.argsort(distances)[:10] 
+
+    recommendations = []
+    for idx in top_indices:
+        row = df.iloc[idx]
+        recommendations.append({
+            "Name": row["Name"],
+            "Cluster": int(row["Cluster"]),
+            "Cluster_Name": row["Cluster_Name"],
+            "Distance": float(distances[idx])
+        })
+
+    return recommendations
