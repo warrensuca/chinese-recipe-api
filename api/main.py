@@ -199,7 +199,7 @@ async def nearest_cluster(recipe_name: str):
     recipe_vector = np.array([
         recipe["Scaled_Calories"], recipe["Scaled_Carbohydrates"],
         recipe["Scaled_Protein"], recipe["Scaled_Fat"],
-        recipe["Scaled_Saturated Fat"], recipe["Scaled_Sodium"], recipe["Scaled_Sugar"]
+        recipe["Scaled_Saturated_Fat"], recipe["Scaled_Sodium"], recipe["Scaled_Sugar"]
     ]).reshape(1, -1)
 
     
@@ -226,7 +226,7 @@ async def recommend_by_nutrition(
     user_values = {
         "Calories": calories, "Carbohydrates": carbohydrates,
         "Protein": protein, "Fat": fat,
-        "Saturated Fat": saturated_fat, "Sodium": sodium, "Sugar": sugar,
+        "Saturated_Fat": saturated_fat, "Sodium": sodium, "Sugar": sugar,
     }
 
     #track which features the user actually provided
@@ -283,7 +283,7 @@ async def recommend_by_weighted_nutrition(
     user_values = {
         "Calories": calories, "Carbohydrates": carbohydrates,
         "Protein": protein, "Fat": fat,
-        "Saturated Fat": saturated_fat, "Sodium": sodium, "Sugar": sugar,
+        "Saturated_Fat": saturated_fat, "Sodium": sodium, "Sugar": sugar,
     }
 
     #track which features the user actually provided
