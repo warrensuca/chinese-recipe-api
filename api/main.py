@@ -25,23 +25,27 @@ class CustomMiddleWare(BaseHTTPMiddleware):
         print(message)
 
     async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+
+        # Skip rate limiting for docs
+        if path in self.exempt_paths:
+            return await call_next(request)
+
         client_ip = request.client.host
         current_time = time.time()
 
-        if current_time - self.rate_limit_records[client_ip] < 0.5: 
-            return Response(content = "Rate limit exceeded", status_code = 429)
+        if current_time - self.rate_limit_records[client_ip] < 0.5:
+            return Response(content="Rate limit exceeded", status_code=429)
 
         self.rate_limit_records[client_ip] = current_time
-        path = request.url.path
+
         await self.log_message(f"Request to {path}")
 
         start_time = time.time()
         response = await call_next(request)
         process_time = time.time() - start_time
 
-        custom_headers = {"X-Process-Time": str(process_time)}
-        for header, value in custom_headers.items():
-            response.headers.append(header, value)
+        response.headers["X-Process-Time"] = str(process_time)
 
         await self.log_message(f"Response for {path} took {process_time} seconds")
 
@@ -71,15 +75,18 @@ df = pd.read_csv(csv_path)
 scaler = joblib.load(scaler_path) 
 kmeans = joblib.load(kmeans_path)
 
+df = df.rename(columns={"Saturated Fat": "Saturated_Fat", "Scaled_Saturated Fat": "Scaled_Saturated_Fat"})
+
 nutrition_features = [
     "Calories", "Carbohydrates", "Protein", "Fat", 
-    "Saturated Fat", "Sodium", "Sugar"
+    "Saturated_Fat", "Sodium", "Sugar"
 ]
 
 scaled_features = [
     "Scaled_Calories", "Scaled_Carbohydrates", "Scaled_Protein", 
-    "Scaled_Fat", "Scaled_Saturated Fat", "Scaled_Sodium", "Scaled_Sugar"
+    "Scaled_Fat", "Scaled_Saturated_Fat", "Scaled_Sodium", "Scaled_Sugar"
 ]
+
 
 scaled_nutrition = df[scaled_features].to_numpy()
 
@@ -144,8 +151,11 @@ async def get_cluster_recipes(cluster_id: int):
     columns_to_return = ["Name", "Ingredients_List", "Procedure", "Cluster_Name", "Cluster"] + nutrition_features
     return recipes[columns_to_return].to_dict("records")
 
+@app.get("/recipes")
+async def get_all_recipes():
+    return df.to_dict("records")
 
-@app.get("/recipe/{recipe_name}")
+@app.get("/recipes/{recipe_name}")
 async def get_recipe(recipe_name: str):
     recipe = df[df["Name"] == recipe_name]
     if len(recipe) == 0:
