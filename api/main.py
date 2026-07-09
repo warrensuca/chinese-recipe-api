@@ -170,8 +170,8 @@ async def get_all_images():
     return df_images.to_dict("records")
 
 @app.get("/images/{image_name}")
-async def get_image(recipe_name: str):
-    image = df_images[df_images['url'].str.contains(recipe_name)]
+async def get_image(image_name: str):
+    image = df_images[df_images['url'].str.contains(image_name)]
     if len(image) == 0:
         raise HTTPException(status_code=404, detail="Image not found")
         
