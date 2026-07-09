@@ -66,11 +66,13 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 csv_path = os.path.join(BASE_DIR, "../clustering/clustered_recipes.csv")
 
+images_csv_path = os.path.join(BASE_DIR, "../cleaning/cleaned_image_links.csv")
 scaler_path = os.path.join(BASE_DIR, "../clustering/scaler.joblib")
 kmeans_path = os.path.join(BASE_DIR, "../clustering/kmeans.joblib")
 
 
 df = pd.read_csv(csv_path)
+df_images = pd.read_csv(images_csv_path)
 
 scaler = joblib.load(scaler_path) 
 kmeans = joblib.load(kmeans_path)
@@ -162,6 +164,19 @@ async def get_recipe(recipe_name: str):
         raise HTTPException(status_code=404, detail="Recipe not found")
     return recipe.iloc[0].to_dict()
 
+@app.get("/images")
+async def get_all_images():
+    print(df_images)
+    return df_images.to_dict("records")
+
+@app.get("/images/{image_name}")
+async def get_image(recipe_name: str):
+    image = df_images[df_images['url'].str.contains(recipe_name)]
+    if len(image) == 0:
+        raise HTTPException(status_code=404, detail="Image not found")
+        
+    else:
+        return image.iloc[0].to_dict()
 
 @app.get("/recommend/{recipe_name}")
 async def recommend(recipe_name: str):
