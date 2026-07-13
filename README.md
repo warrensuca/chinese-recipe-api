@@ -2,7 +2,7 @@
 
 A machine learning-centred REST API that clusters and recommends Chinese recipes scraped from [Omnivore's Kitchen](https://omnivorescookbook.com/category/recipe/) and [The Woks of Life](https://thewoksoflife.com/category/recipes/) based on their nutritional profiles and ingredient similarities.
 
-**Live URL:** [https://chinese-recipe-api.vercel.app/](https://chinese-recipe-api.vercel.app/)
+**Live URL:** [https://jian-api.onrender.com/](https://jian-api.onrender.com/)
 
 ## Features
 * **Nutritional Clustering:** Recipes are categorized into distinct clusters based on 7 nutritional features.
@@ -17,7 +17,7 @@ A machine learning-centred REST API that clusters and recommends Chinese recipes
 * **Data Processing:** Pandas, NumPy
 * **Data Visualization:** Matplotlib
 * **Machine Learning:** Scikit-Learn, Joblib
-* **Deployment:** Vercel
+* **Deployment:** Render
 
 ## API Endpoints
 
