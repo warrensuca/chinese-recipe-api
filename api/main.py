@@ -69,13 +69,14 @@ csv_path = os.path.join(BASE_DIR, "../clustering/clustered_recipes.csv")
 images_csv_path = os.path.join(BASE_DIR, "../cleaning/cleaned_image_links.csv")
 scaler_path = os.path.join(BASE_DIR, "../clustering/scaler.joblib")
 kmeans_path = os.path.join(BASE_DIR, "../clustering/kmeans.joblib")
-
+recipe_embeddings_path = os.path.join(BASE_DIR, "../embeddings/recipe_embeddings.npy")
 
 df = pd.read_csv(csv_path)
 df_images = pd.read_csv(images_csv_path)
 
 scaler = joblib.load(scaler_path) 
 kmeans = joblib.load(kmeans_path)
+recipe_embeddings = np.load(recipe_embeddings_path)
 
 df = df.rename(columns={"Saturated Fat": "Saturated_Fat", "Scaled_Saturated Fat": "Scaled_Saturated_Fat"})
 
@@ -113,17 +114,21 @@ async def jaccard_similarity(set_a, set_b):
         return 0
     return len(set_a & set_b) / len(union)
 
+async def ingredients_similarity(index_a, index_b):
+    a = recipe_embeddings[index_a]
+    b = recipe_embeddings[index_b]
+    
+    return np.dot(a,b) / (np.norm(a)*np.norm(b)) #cosine similarity
+    
 async def nutrition_similarity(index_a, index_b):
     distance = np.linalg.norm(scaled_nutrition[index_a] - scaled_nutrition[index_b])
     return 1 / (1 + distance)
 
 async def recipe_similarity(index_a, index_b):
     nutrition_score = nutrition_similarity(index_a, index_b)
-    ingredients_a = parse_ingredients(df.iloc[index_a]["Ingredients_Names"])
-    ingredients_b = parse_ingredients(df.iloc[index_b]["Ingredients_Names"])
-    ingredient_score = jaccard_similarity(ingredients_a, ingredients_b)
+    ingredient_score = ingredients_similarity(index_a, index_b)
     
-    return (0.8 * nutrition_score) + (0.2 * ingredient_score)
+    return (0.7 * nutrition_score) + (0.3 * ingredient_score)
 
 
 # endpoints
