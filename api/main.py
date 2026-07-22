@@ -70,13 +70,17 @@ images_csv_path = os.path.join(BASE_DIR, "../cleaning/cleaned_image_links.csv")
 scaler_path = os.path.join(BASE_DIR, "../clustering/scaler.joblib")
 kmeans_path = os.path.join(BASE_DIR, "../clustering/kmeans.joblib")
 recipe_embeddings_path = os.path.join(BASE_DIR, "../embeddings/recipe_embeddings.npy")
+ingredients_embeddings_path = os.path.join(BASE_DIR, "../embeddings/recipe_embeddings.npy")
+
 
 df = pd.read_csv(csv_path)
 df_images = pd.read_csv(images_csv_path)
+df_images = df_images.fillna('')
 
 scaler = joblib.load(scaler_path) 
 kmeans = joblib.load(kmeans_path)
 recipe_embeddings = np.load(recipe_embeddings_path)
+ingredients_embeddings = np.load(ingredients_embeddings_path)
 
 df = df.rename(columns={"Saturated Fat": "Saturated_Fat", "Scaled_Saturated Fat": "Scaled_Saturated_Fat"})
 
@@ -123,6 +127,8 @@ async def ingredients_similarity(index_a, index_b):
 async def nutrition_similarity(index_a, index_b):
     distance = np.linalg.norm(scaled_nutrition[index_a] - scaled_nutrition[index_b])
     return 1 / (1 + distance)
+
+
 
 async def recipe_similarity(index_a, index_b):
     nutrition_score = nutrition_similarity(index_a, index_b)
@@ -177,6 +183,8 @@ async def get_all_images():
 @app.get("/images/{image_name}")
 async def get_image(image_name: str):
     image = df_images[df_images['url'].str.contains(image_name)]
+    if len(image) == 0 and image_name[-1] == 's':
+        image = df_images[df_images['url'].str.contains(image_name[:-1])]
     if len(image) == 0:
         raise HTTPException(status_code=404, detail="Image not found")
         
@@ -363,3 +371,6 @@ async def recommend_by_weighted_nutrition(
         })
 
     return recommendations
+#@app.get('/get-healthy-alternative')
+#async def get_healthy_alternative():
+    
