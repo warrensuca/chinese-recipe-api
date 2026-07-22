@@ -182,14 +182,29 @@ async def get_all_images():
 
 @app.get("/images/{image_name}")
 async def get_image(image_name: str):
-    image = df_images[df_images['url'].str.contains(image_name)]
-    if len(image) == 0 and image_name[-1] == 's':
-        image = df_images[df_images['url'].str.contains(image_name[:-1])]
+
+    clean_name = image_name.strip()
+    
+
+    image = df_images[df_images['url'].str.contains(
+        clean_name, 
+        case=False,   # ignores upper/lowercase differences
+        na=False,     # prevents errors if there are empty rows in the dataframe
+        regex=False   # treats the input as a literal string, not a regex pattern
+    )]
+    
+    if len(image) == 0 and clean_name.lower().endswith('s'):
+        image = df_images[df_images['url'].str.contains(
+            clean_name[:-1], 
+            case=False, 
+            na=False, 
+            regex=False
+        )]
+        
     if len(image) == 0:
         raise HTTPException(status_code=404, detail="Image not found")
         
-    else:
-        return image.iloc[0].to_dict()
+    return image.iloc[0].to_dict()
 
 @app.get("/recommend/{recipe_name}")
 async def recommend(recipe_name: str):
