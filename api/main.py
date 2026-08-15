@@ -70,12 +70,14 @@ images_csv_path = os.path.join(BASE_DIR, "../cleaning/cleaned_image_links.csv")
 scaler_path = os.path.join(BASE_DIR, "../clustering/scaler.joblib")
 kmeans_path = os.path.join(BASE_DIR, "../clustering/kmeans.joblib")
 recipe_embeddings_path = os.path.join(BASE_DIR, "../embeddings/recipe_embeddings.npy")
-ingredients_embeddings_path = os.path.join(BASE_DIR, "../embeddings/recipe_embeddings.npy")
+ingredients_embeddings_path = os.path.join(BASE_DIR, "../embeddings/ingredient_embeddings.npy")
+individual_ingredients_path = os.path.join(BASE_DIR, "../embeddings/individual_ingredients.csv")
 
 
 df = pd.read_csv(csv_path)
 df_images = pd.read_csv(images_csv_path)
 df_images = df_images.fillna('')
+df_ingredients = pd.read_csv(individual_ingredients_path)
 
 scaler = joblib.load(scaler_path) 
 kmeans = joblib.load(kmeans_path)
@@ -99,6 +101,45 @@ scaled_nutrition = df[scaled_features].to_numpy()
 
 
 dataset_medians = df[nutrition_features].median().to_numpy()
+
+# Map ingredient names to recipe nutritional profiles
+ing_recipe_map = defaultdict(list)
+for idx, row in df.iterrows():
+    try:
+        raw_ings = ast.literal_eval(row['Ingredients_Names'])
+        if isinstance(raw_ings, list):
+            for ing in raw_ings:
+                clean = str(ing).strip().lower()
+                ing_recipe_map[clean].append(idx)
+    except Exception:
+        pass
+
+ing_profiles = []
+for idx, row in df_ingredients.iterrows():
+    name = str(row['ingredient']).strip().lower()
+    rec_indices = ing_recipe_map.get(name, [])
+    if rec_indices:
+        sub_df = df.iloc[rec_indices]
+        calories = float(sub_df['Calories'].median())
+        protein = float(sub_df['Protein'].median())
+        carbs = float(sub_df['Carbohydrates'].median())
+    else:
+        calories = float(df['Calories'].median())
+        protein = float(df['Protein'].median())
+        carbs = float(df['Carbohydrates'].median())
+    ing_profiles.append({
+        'ingredient': row['ingredient'],
+        'Calories': calories,
+        'Protein': protein,
+        'Carbohydrates': carbs
+    })
+
+df_ing_profiles = pd.DataFrame(ing_profiles)
+ing_norms = np.linalg.norm(ingredients_embeddings, axis=1)
+
+std_protein = df_ing_profiles['Protein'].std() or 1.0
+std_calories = df_ing_profiles['Calories'].std() or 1.0
+std_carbs = df_ing_profiles['Carbohydrates'].std() or 1.0
 
 
 #helper functions
@@ -386,6 +427,112 @@ async def recommend_by_weighted_nutrition(
         })
 
     return recommendations
-#@app.get('/get-healthy-alternative')
-#async def get_healthy_alternative():
-    
+
+
+def recommend_healthier_ingredients_helper(
+    ingredient_name: str,
+    goal: str,
+    similarity_weight: float = 0.5,
+    top_k: int = 10
+):
+    clean_name = ingredient_name.strip().lower()
+    matches = df_ing_profiles[df_ing_profiles['ingredient'].str.lower() == clean_name]
+    if len(matches) == 0:
+        matches = df_ing_profiles[df_ing_profiles['ingredient'].str.lower().str.contains(clean_name)]
+    if len(matches) == 0:
+        raise HTTPException(status_code=404, detail=f"Ingredient '{ingredient_name}' not found.")
+
+    target_idx = matches.index[0]
+    target_row = df_ing_profiles.iloc[target_idx]
+    target_vec = ingredients_embeddings[target_idx]
+    target_norm = ing_norms[target_idx]
+
+    if target_norm == 0:
+        sims = np.zeros(len(ingredients_embeddings))
+    else:
+        sims = np.dot(ingredients_embeddings, target_vec) / (ing_norms * target_norm + 1e-9)
+
+    results = []
+    w = max(0.0, min(1.0, float(similarity_weight)))
+
+    for idx, row in df_ing_profiles.iterrows():
+        if idx == target_idx:
+            continue
+        sim = float(sims[idx])
+        if sim <= 0:
+            continue
+
+        if goal == 'higher_protein':
+            delta = float(row['Protein'] - target_row['Protein'])
+            if delta <= 0:
+                continue
+            health_score = float(1.0 / (1.0 + np.exp(-delta / std_protein)))
+            target_val = float(target_row['Protein'])
+            alt_val = float(row['Protein'])
+            unit = "g"
+        elif goal == 'lower_calorie':
+            delta = float(target_row['Calories'] - row['Calories'])
+            if delta <= 0:
+                continue
+            health_score = float(1.0 / (1.0 + np.exp(-delta / std_calories)))
+            target_val = float(target_row['Calories'])
+            alt_val = float(row['Calories'])
+            unit = "kcal"
+        elif goal == 'lower_carb':
+            delta = float(target_row['Carbohydrates'] - row['Carbohydrates'])
+            if delta <= 0:
+                continue
+            health_score = float(1.0 / (1.0 + np.exp(-delta / std_carbs)))
+            target_val = float(target_row['Carbohydrates'])
+            alt_val = float(row['Carbohydrates'])
+            unit = "g"
+        else:
+            raise HTTPException(status_code=400, detail="Invalid health goal specified.")
+
+        balanced_score = float(w * max(0.0, sim) + (1.0 - w) * health_score)
+
+        results.append({
+            "Ingredient": row['ingredient'],
+            "Similarity": round(sim, 4),
+            "Health_Score": round(health_score, 4),
+            "Balanced_Score": round(balanced_score, 4),
+            "Target_Nutritional_Value": target_val,
+            "Alternative_Nutritional_Value": alt_val,
+            "Health_Improvement": round(delta, 2),
+            "Unit": unit
+        })
+
+    results.sort(key=lambda x: x["Balanced_Score"], reverse=True)
+    return {
+        "Target_Ingredient": target_row['ingredient'],
+        "Goal": goal,
+        "Similarity_Weight": w,
+        "Recommendations": results[:top_k]
+    }
+
+
+@app.get("/healthier/higher-protein/{ingredient_name}")
+async def get_higher_protein_alternative(
+    ingredient_name: str,
+    similarity_weight: Optional[float] = 0.5,
+    top_k: Optional[int] = 10
+):
+    return recommend_healthier_ingredients_helper(ingredient_name, "higher_protein", similarity_weight, top_k)
+
+
+@app.get("/healthier/lower-calorie/{ingredient_name}")
+async def get_lower_calorie_alternative(
+    ingredient_name: str,
+    similarity_weight: Optional[float] = 0.5,
+    top_k: Optional[int] = 10
+):
+    return recommend_healthier_ingredients_helper(ingredient_name, "lower_calorie", similarity_weight, top_k)
+
+
+@app.get("/healthier/lower-carb/{ingredient_name}")
+async def get_lower_carb_alternative(
+    ingredient_name: str,
+    similarity_weight: Optional[float] = 0.5,
+    top_k: Optional[int] = 10
+):
+    return recommend_healthier_ingredients_helper(ingredient_name, "lower_carb", similarity_weight, top_k)
